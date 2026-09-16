@@ -1,6 +1,6 @@
 # Publicação
 
-Documento de referência para o time de infraestrutura. Descreve como o `st-widgets` é publicado, por que o desenho é este e o que precisa ser provisionado na AWS.
+Documento de referência para o time de infraestrutura. Descreve como o `st-widgets` é publicado, por que o desenho é este e o que está provisionado na AWS.
 
 ## Resumo
 
@@ -56,7 +56,26 @@ O Amplify entrega o modelo "branch = ambiente" pronto e é uma escolha defensáv
 
 **Quando reconsiderar:** se o time não gerencia CloudFront por código hoje e não pretende passar a gerenciar, o custo de provisionamento pesa e o Amplify volta a ser competitivo. A pergunta que decide é se já existe distribuição CloudFront provisionada por IaC em outros projetos da StartBet.
 
-## O que provisionar na AWS
+## Infra provisionada
+
+Entregue e testada pelo time de infraestrutura nos dois ambientes.
+
+|                   | dev                                                | produção                                            |
+| ----------------- | -------------------------------------------------- | --------------------------------------------------- |
+| URL               | `https://supermultipla-dev.start.bet.br`           | `https://supermultipla.start.bet.br`                |
+| Bucket            | `st-widgets-dev`                                   | `st-widgets-prod`                                   |
+| Distribuição      | `EHZS07M1IQ2IM`                                    | `E341JJ1RNTO8J9`                                    |
+| Role              | `arn:aws:iam::538039268943:role/gh-st-widgets-dev` | `arn:aws:iam::538039268943:role/gh-st-widgets-prod` |
+| Região            | `sa-east-1`                                        | `sa-east-1`                                         |
+| `frame-ancestors` | `https://start-dev.cometagaming.com`               | `https://start.bet.br`                              |
+
+Nos dois: bucket privado com OAC, HTTPS obrigatório, TLS 1.2+, HTTP/2 e HTTP/3, versionamento com expiração das versões antigas em 90 dias, cache policy `CachingOptimized` (respeita o `Cache-Control` do upload) e os headers de segurança abaixo — sem `X-Frame-Options`, que o código também não deve emitir.
+
+Esta tabela é referência. Quem alimenta o workflow são as _variables_ do GitHub Environment; se divergirem, valem as variables.
+
+As roles só aceitam token OIDC cujo `sub` seja `repo:StartBet/st-widgets:environment:dev` ou `:environment:production`. Na prática isso torna obrigatórios, no job de deploy, o `environment:` com exatamente esses nomes e o `permissions: id-token: write` — sem os dois, a autenticação falha.
+
+## O que foi provisionado, em detalhe
 
 Por ambiente:
 
@@ -81,7 +100,7 @@ Referrer-Policy: strict-origin-when-cross-origin
 
 Em dev, o `frame-ancestors` troca para `https://start-dev.cometagaming.com`. Cada distribuição tem a sua policy: a de produção não deve listar a origem de dev.
 
-É a mesma origem do `VITE_HOST_ORIGINS`, e pela mesma razão — quem embute é a página do site, não a Altenar. Vale aqui o mesmo cuidado com o `www`.
+É a mesma origem do `VITE_HOST_ORIGINS`, e pela mesma razão — quem embute é a página do site, não a Altenar. Sem `www` nos dois ambientes; o teste que confirmou isso está em _Configuração no GitHub_.
 
 Sem `X-Frame-Options` — o header legado, se presente, vence o `frame-ancestors` em alguns navegadores e quebra o embed.
 
@@ -148,17 +167,20 @@ Dois environments, `dev` e `production`. No `production`, restringir o _deployme
 
 _Variables_ de cada environment:
 
-| Nome                       | `dev`                                | `production`                   |
-| -------------------------- | ------------------------------------ | ------------------------------ |
-| `VITE_ALTENAR_INTEGRATION` | `startbet`                           | `startbet`                     |
-| `VITE_API_BASE_URL`        | `https://start-dev.cometagaming.com` | `https://start.bet.br`         |
-| `VITE_HOST_ORIGINS`        | `https://start-dev.cometagaming.com` | `https://start.bet.br`         |
-| `VITE_DEFAULT_THEME`       | `dark`                               | `dark`                         |
-| `AWS_ROLE_ARN`             | ARN da role de dev                   | ARN da role de produção        |
-| `AWS_S3_BUCKET`            | `st-widgets-dev`                     | `st-widgets-prod`              |
-| `AWS_CLOUDFRONT_ID`        | id da distribuição de dev            | id da distribuição de produção |
+| Nome                       | `dev`                                | `production`                |
+| -------------------------- | ------------------------------------ | --------------------------- |
+| `VITE_ALTENAR_INTEGRATION` | `startbet`                           | `startbet`                  |
+| `VITE_API_BASE_URL`        | `https://start-dev.cometagaming.com` | `https://start.bet.br`      |
+| `VITE_HOST_ORIGINS`        | `https://start-dev.cometagaming.com` | `https://start.bet.br`      |
+| `VITE_DEFAULT_THEME`       | `dark`                               | `dark`                      |
+| `AWS_ROLE_ARN`             | `…:role/gh-st-widgets-dev`           | `…:role/gh-st-widgets-prod` |
+| `AWS_REGION`               | `sa-east-1`                          | `sa-east-1`                 |
+| `AWS_S3_BUCKET`            | `st-widgets-dev`                     | `st-widgets-prod`           |
+| `AWS_CLOUDFRONT_ID`        | `EHZS07M1IQ2IM`                      | `E341JJ1RNTO8J9`            |
 
 Todas são _variables_, não _secrets_ — nenhuma é sensível, e mantê-las visíveis evita a falsa sensação de proteção. ARN de role e id de distribuição não são segredo: sem o OIDC do repositório, não servem para nada.
+
+`AWS_REGION` é `sa-east-1` nos dois ambientes, porque é onde os buckets vivem. Não confundir com o `us-east-1` do certificado ACM: aquela região é imposta pelo CloudFront e vale só para o certificado, não para as chamadas de S3 do deploy.
 
 `VITE_API_BASE_URL` aponta para o front-startbet do ambiente, porque é o Nitro dele que serve as rotas de dados — não existe domínio separado de API. Sem barra no final e sem caminho: o `trimSlash` de `src/config/env.ts` normaliza, mas o valor certo já entra limpo.
 
@@ -166,7 +188,7 @@ Note que o ambiente de dev vive em outro domínio registrável (`cometagaming.co
 
 `VITE_HOST_ORIGINS` leva **uma origem só**: a da página que embute o widget. Não entra a origem do próprio widget, e não entra nenhuma origem da Altenar — o porquê está na seção seguinte.
 
-> **Confirmar o `www` antes de preencher.** Comparação de origem é string exata: `https://start.bet.br` e `https://www.start.bet.br` são origens diferentes, e a errada quebra o bridge sem emitir erro. Abrir a página do site, deixar os redirects acontecerem e usar exatamente o que sobrar na barra de endereço. O mesmo vale para o ambiente de dev.
+> **Sem `www`, verificado.** Comparação de origem é string exata, e a errada quebra o bridge sem emitir erro. `www.start.bet.br` responde `302` para o apex, e `www.start-dev.cometagaming.com` sequer resolve — as duas origens canônicas são sem `www`. Para repetir o teste: `curl -sIL https://<host> | grep -iE "^HTTP/|^location:"` nas duas variantes; a que responde `200` sem redirecionar é a boa. A barra de endereço do navegador serve, mas Chrome e Edge escondem o `www.` visualmente, então o `curl` é mais confiável.
 
 ## Topologia do embed
 
@@ -239,18 +261,16 @@ deploy:
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-        aws-region: us-east-1
+        aws-region: ${{ vars.AWS_REGION }}
     - name: Upload assets
       run: |
-        aws s3 sync dist/ "s3://${{ vars.AWS_S3_BUCKET }}/" \
-          --delete \
-          --exclude "*.html" \
+        aws s3 sync dist/assets "s3://${{ vars.AWS_S3_BUCKET }}/assets" \
           --cache-control "public,max-age=31536000,immutable"
     - name: Upload HTML
       run: |
-        aws s3 sync dist/ "s3://${{ vars.AWS_S3_BUCKET }}/" \
+        aws s3 sync dist "s3://${{ vars.AWS_S3_BUCKET }}" \
           --delete \
-          --exclude "*" --include "*.html" \
+          --exclude "assets/*" \
           --cache-control "no-cache"
     - name: Invalidate CloudFront
       run: |
@@ -259,18 +279,22 @@ deploy:
           --paths "/*"
 ```
 
-Três detalhes que não são óbvios:
+Quatro detalhes que não são óbvios:
 
 **Por que o job reconstrói.** O build do job `quality` é uma validação: prova que o código compila, sem variáveis de ambiente. O build do `deploy` é o artefato real, com os valores do ambiente embutidos. São builds com propósitos diferentes — reaproveitar o primeiro publicaria um bundle com os valores errados.
 
-**Por que dois `aws s3 sync`.** Cada passo aplica um `Cache-Control` diferente. A ordem importa: assets primeiro, HTML depois, para que nunca exista um `.html` publicado apontando para um asset que ainda não subiu. O `--delete` do primeiro passo não remove os `.html` do destino, porque o filtro `--exclude` também se aplica à listagem do bucket.
+**Por que dois `aws s3 sync`.** Cada passo aplica um `Cache-Control` diferente. A ordem importa: assets primeiro, HTML depois, para que nunca exista um `.html` publicado apontando para um asset que ainda não subiu.
+
+**Por que `--delete` só no HTML.** Apagar os assets antigos junto com o upload quebra quem está com a página **já aberta**: o navegador segue referenciando os arquivos da versão anterior, e eles somem embaixo dele no meio da sessão. Por isso os assets sobem sem `--delete` e acumulam, enquanto o `--delete` fica no passo do HTML, com `--exclude "assets/*"` — ali limpar é seguro, e é o que remove do bucket o `.html` de um widget descontinuado.
 
 **Por que `concurrency` sem `cancel-in-progress`.** Dois deploys simultâneos na mesma branch podem intercalar uploads e deixar o bucket num estado misto. Cancelar um deploy no meio tem o mesmo efeito — por isso eles são enfileirados, não cancelados.
+
+Sobre a invalidação: o `--paths` do CloudFront só aceita `*` no fim do caminho, então `"/*.html"` é inválido. `"/*"` invalida tudo, o que é barato aqui — os assets têm hash no nome e nunca são rebaixados por uma invalidação.
 
 ## Verificação pós-deploy
 
 ```bash
-curl -sI https://supermultipla.start.bet.br/boosts.html
+curl -sI https://supermultipla-dev.start.bet.br/boosts.html
 ```
 
 Conferir: `200`, `cache-control: no-cache`, presença de `content-security-policy` com `frame-ancestors` e ausência de `x-frame-options`. Num arquivo de `assets/`, conferir `cache-control: public, max-age=31536000, immutable`.
@@ -279,7 +303,7 @@ Depois, abrir a página num `<iframe>` a partir de uma origem autorizada e confi
 
 ## Pendências antes do primeiro deploy
 
-- **`www` na origem do site.** Define o `VITE_HOST_ORIGINS` e o `frame-ancestors`, e é a única coisa que ainda separa essas duas configurações de estarem fechadas. Confirmar abrindo a página do site e lendo a barra de endereço depois dos redirects, nos dois ambientes.
+- **Nome do primeiro widget.** O smoke test combinado com a infraestrutura aponta para `apostas-aumentadas.html`, mas o build hoje gera `boosts.html` — o único widget que existe. Alinhar o nome antes do primeiro deploy, senão o teste dá 404 por motivo errado.
 - **Raiz do domínio.** O `index.html` é catálogo de desenvolvimento e está excluído do build de produção: o `dist/` tem apenas `boosts.html` e `assets/`. Hoje `https://supermultipla.start.bet.br/` não resolve para nada. Decidir entre uma página mínima, um redirect ou um 404 tratado — com OAC, objeto ausente retorna `403`, então é preciso um _custom error response_ para virar um 404 apresentável.
 - **CORS no Nitro.** O widget passa a chamar a API a partir de uma origem nova, e são duas configurações distintas: o Nitro de `start.bet.br` precisa liberar o domínio do widget de produção, e o de `start-dev.cometagaming.com` o de dev. Só vira bloqueante quando a camada de dados existir.
 - **CSP da página hospedeira.** O host da EstrelaBet serve um CSP com `connect-src 'none'` — hoje em _report-only_, então só registra. Se uma política equivalente for aplicada de verdade na nossa página, ela bloqueia as requisições do widget e derruba a camada de dados. Conferir com quem administra o CSP do site antes de construí-la.

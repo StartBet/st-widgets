@@ -70,12 +70,16 @@ Por ambiente:
 
 **Response Headers Policy:**
 
+Em produção:
+
 ```
-Content-Security-Policy: frame-ancestors https://www.startbet.bet.br <origem do back office da Altenar>
+Content-Security-Policy: frame-ancestors https://start.bet.br <origem do back office da Altenar>
 Strict-Transport-Security: max-age=31536000; includeSubDomains
 X-Content-Type-Options: nosniff
 Referrer-Policy: strict-origin-when-cross-origin
 ```
+
+Em dev, o `frame-ancestors` troca para `https://start-dev.cometagaming.com` mais o back office. Cada distribuição tem a sua policy: a de produção não deve listar a origem de dev.
 
 Sem `X-Frame-Options` — o header legado, se presente, vence o `frame-ancestors` em alguns navegadores e quebra o embed.
 
@@ -144,17 +148,21 @@ Dois environments, `dev` e `production`. No `production`, restringir o _deployme
 
 _Variables_ de cada environment:
 
-| Nome                       | `dev`                                           | `production`                      |
-| -------------------------- | ----------------------------------------------- | --------------------------------- |
-| `VITE_ALTENAR_INTEGRATION` | `startbet`                                      | `startbet`                        |
-| `VITE_API_BASE_URL`        | origem do Nitro de homologação                  | `https://www.startbet.bet.br`     |
-| `VITE_HOST_ORIGINS`        | origens de homologação + back office da Altenar | origens de produção + back office |
-| `VITE_DEFAULT_THEME`       | `dark`                                          | `dark`                            |
-| `AWS_ROLE_ARN`             | ARN da role de dev                              | ARN da role de produção           |
-| `AWS_S3_BUCKET`            | `st-widgets-dev`                                | `st-widgets-prod`                 |
-| `AWS_CLOUDFRONT_ID`        | id da distribuição de dev                       | id da distribuição de produção    |
+| Nome                       | `dev`                                              | `production`                         |
+| -------------------------- | -------------------------------------------------- | ------------------------------------ |
+| `VITE_ALTENAR_INTEGRATION` | `startbet`                                         | `startbet`                           |
+| `VITE_API_BASE_URL`        | `https://start-dev.cometagaming.com`               | `https://start.bet.br`               |
+| `VITE_HOST_ORIGINS`        | `https://start-dev.cometagaming.com` + back office | `https://start.bet.br` + back office |
+| `VITE_DEFAULT_THEME`       | `dark`                                             | `dark`                               |
+| `AWS_ROLE_ARN`             | ARN da role de dev                                 | ARN da role de produção              |
+| `AWS_S3_BUCKET`            | `st-widgets-dev`                                   | `st-widgets-prod`                    |
+| `AWS_CLOUDFRONT_ID`        | id da distribuição de dev                          | id da distribuição de produção       |
 
 Todas são _variables_, não _secrets_ — nenhuma é sensível, e mantê-las visíveis evita a falsa sensação de proteção. ARN de role e id de distribuição não são segredo: sem o OIDC do repositório, não servem para nada.
+
+`VITE_API_BASE_URL` aponta para o front-startbet do ambiente, porque é o Nitro dele que serve as rotas de dados — não existe domínio separado de API. Sem barra no final e sem caminho: o `trimSlash` de `src/config/env.ts` normaliza, mas o valor certo já entra limpo.
+
+Note que o ambiente de dev vive em outro domínio registrável (`cometagaming.com`, não `bet.br`). Para requisição de leitura com CORS isso é indiferente, mas se a camada de dados um dia precisar mandar cookie, o navegador vai tratar como contexto _cross-site_ e exigir `SameSite=None; Secure`. Vale saber agora para não descobrir depois.
 
 ## O workflow
 
@@ -247,8 +255,8 @@ Depois, abrir a página num `<iframe>` a partir de uma origem autorizada e confi
 
 ## Pendências antes do primeiro deploy
 
-- **Grafia do domínio.** Confirmar se é `supermultipla` ou `supermutipla` — o nome vai para DNS e certificado, e mudar depois custa caro.
+- **Domínio dos widgets.** Duas confirmações antes de emitir certificado: a grafia (`supermultipla` ou `supermutipla`) e a zona. O site publicado hoje é `start.bet.br`, e o ambiente de dev é `start-dev.cometagaming.com` — nenhum dos dois é `startbet.bet.br`. Confirmar se essa zona existe e é nossa, ou se o widget deveria morar em `supermultipla.start.bet.br`.
 - **Raiz do domínio.** O `index.html` é catálogo de desenvolvimento e está excluído do build de produção: o `dist/` tem apenas `boosts.html` e `assets/`. Hoje `https://supermultipla.startbet.bet.br/` não resolve para nada. Decidir entre uma página mínima, um redirect ou um 404 tratado — com OAC, objeto ausente retorna `403`, então é preciso um _custom error response_ para virar um 404 apresentável.
-- **CORS no Nitro.** O widget passa a chamar a API a partir de uma origem nova. O Nitro precisa liberar `supermultipla.startbet.bet.br` e `supermultipla-dev.startbet.bet.br`.
+- **CORS no Nitro.** O widget passa a chamar a API a partir de uma origem nova, e são duas configurações distintas: o Nitro de `start.bet.br` precisa liberar o domínio do widget de produção, e o de `start-dev.cometagaming.com` o de dev. Só vira bloqueante quando a camada de dados existir.
 - **Origem do back office da Altenar.** Necessária para fechar o `frame-ancestors` e o `VITE_HOST_ORIGINS`.
 - **Peso das fontes.** `base-neue-condensed.css` declara 18 pesos em TTF e o build emite todos (~2,2 MB). O navegador só baixa o peso usado, mas vale reduzir a família e migrar para woff2 antes do primeiro widget real em produção.

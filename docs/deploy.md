@@ -8,8 +8,8 @@ Duas branches, dois ambientes, dois buckets, duas distribuições:
 
 | Branch | Ambiente | Domínio                             | Bucket            | GitHub Environment |
 | ------ | -------- | ----------------------------------- | ----------------- | ------------------ |
-| `dev`  | dev      | `supermultipla-dev.startbet.bet.br` | `st-widgets-dev`  | `dev`              |
-| `main` | produção | `supermultipla.startbet.bet.br`     | `st-widgets-prod` | `production`       |
+| `dev`  | dev      | `supermultipla-dev.start.bet.br` | `st-widgets-dev`  | `dev`              |
+| `main` | produção | `supermultipla.start.bet.br`     | `st-widgets-prod` | `production`       |
 
 O artefato é estático: o `npm run build` gera um `dist/` com uma `.html` por widget na raiz e os assets com hash em `assets/`. Não há servidor, runtime nem processo. O deploy é copiar arquivos para o S3 e invalidar o CloudFront.
 

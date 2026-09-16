@@ -6,8 +6,8 @@ Documento de referência para o time de infraestrutura. Descreve como o `st-widg
 
 Duas branches, dois ambientes, dois buckets, duas distribuições:
 
-| Branch | Ambiente | Domínio                             | Bucket            | GitHub Environment |
-| ------ | -------- | ----------------------------------- | ----------------- | ------------------ |
+| Branch | Ambiente | Domínio                          | Bucket            | GitHub Environment |
+| ------ | -------- | -------------------------------- | ----------------- | ------------------ |
 | `dev`  | dev      | `supermultipla-dev.start.bet.br` | `st-widgets-dev`  | `dev`              |
 | `main` | produção | `supermultipla.start.bet.br`     | `st-widgets-prod` | `production`       |
 
@@ -46,7 +46,7 @@ Os valores ficam em **GitHub Environments** (`dev` e `production`), como _variab
 
 O Amplify entrega o modelo "branch = ambiente" pronto e é uma escolha defensável. A recomendação por S3 + CloudFront se apoia em quatro pontos:
 
-**Controle de headers.** O widget roda dentro de `<iframe>` — no back office da Altenar e em páginas nossas. Isso torna dois headers críticos: não pode sair `X-Frame-Options`, e precisa sair um `Content-Security-Policy: frame-ancestors` com a lista exata de quem pode embutir. No CloudFront isso é uma _Response Headers Policy_: declarativa, versionada, revisável.
+**Controle de headers.** O widget roda dentro de `<iframe>`, embutido nas páginas do site. Isso torna dois headers críticos: não pode sair `X-Frame-Options`, e precisa sair um `Content-Security-Policy: frame-ancestors` com a lista exata de quem pode embutir. No CloudFront isso é uma _Response Headers Policy_: declarativa, versionada, revisável.
 
 **Controle de cache.** Widget em iframe tem uma exigência específica — o `.html` precisa ser revalidado a cada carga, senão o host continua servindo a versão anterior depois do deploy. Os assets, que têm hash no nome, podem ser imutáveis por um ano. São políticas diferentes por padrão de arquivo, o terreno natural do CloudFront.
 
@@ -73,17 +73,17 @@ Por ambiente:
 Em produção:
 
 ```
-Content-Security-Policy: frame-ancestors https://start.bet.br <origem do back office da Altenar>
+Content-Security-Policy: frame-ancestors https://start.bet.br
 Strict-Transport-Security: max-age=31536000; includeSubDomains
 X-Content-Type-Options: nosniff
 Referrer-Policy: strict-origin-when-cross-origin
 ```
 
-Em dev, o `frame-ancestors` troca para `https://start-dev.cometagaming.com` mais o back office. Cada distribuição tem a sua policy: a de produção não deve listar a origem de dev.
+Em dev, o `frame-ancestors` troca para `https://start-dev.cometagaming.com`. Cada distribuição tem a sua policy: a de produção não deve listar a origem de dev.
+
+É a mesma origem do `VITE_HOST_ORIGINS`, e pela mesma razão — quem embute é a página do site, não a Altenar. Vale aqui o mesmo cuidado com o `www`.
 
 Sem `X-Frame-Options` — o header legado, se presente, vence o `frame-ancestors` em alguns navegadores e quebra o embed.
-
-A origem exata do back office da Altenar ainda precisa ser confirmada com eles antes de fechar a policy.
 
 **Política de cache**, aplicada no `Cache-Control` durante o upload:
 
@@ -148,21 +148,45 @@ Dois environments, `dev` e `production`. No `production`, restringir o _deployme
 
 _Variables_ de cada environment:
 
-| Nome                       | `dev`                                              | `production`                         |
-| -------------------------- | -------------------------------------------------- | ------------------------------------ |
-| `VITE_ALTENAR_INTEGRATION` | `startbet`                                         | `startbet`                           |
-| `VITE_API_BASE_URL`        | `https://start-dev.cometagaming.com`               | `https://start.bet.br`               |
-| `VITE_HOST_ORIGINS`        | `https://start-dev.cometagaming.com` + back office | `https://start.bet.br` + back office |
-| `VITE_DEFAULT_THEME`       | `dark`                                             | `dark`                               |
-| `AWS_ROLE_ARN`             | ARN da role de dev                                 | ARN da role de produção              |
-| `AWS_S3_BUCKET`            | `st-widgets-dev`                                   | `st-widgets-prod`                    |
-| `AWS_CLOUDFRONT_ID`        | id da distribuição de dev                          | id da distribuição de produção       |
+| Nome                       | `dev`                                | `production`                   |
+| -------------------------- | ------------------------------------ | ------------------------------ |
+| `VITE_ALTENAR_INTEGRATION` | `startbet`                           | `startbet`                     |
+| `VITE_API_BASE_URL`        | `https://start-dev.cometagaming.com` | `https://start.bet.br`         |
+| `VITE_HOST_ORIGINS`        | `https://start-dev.cometagaming.com` | `https://start.bet.br`         |
+| `VITE_DEFAULT_THEME`       | `dark`                               | `dark`                         |
+| `AWS_ROLE_ARN`             | ARN da role de dev                   | ARN da role de produção        |
+| `AWS_S3_BUCKET`            | `st-widgets-dev`                     | `st-widgets-prod`              |
+| `AWS_CLOUDFRONT_ID`        | id da distribuição de dev            | id da distribuição de produção |
 
 Todas são _variables_, não _secrets_ — nenhuma é sensível, e mantê-las visíveis evita a falsa sensação de proteção. ARN de role e id de distribuição não são segredo: sem o OIDC do repositório, não servem para nada.
 
 `VITE_API_BASE_URL` aponta para o front-startbet do ambiente, porque é o Nitro dele que serve as rotas de dados — não existe domínio separado de API. Sem barra no final e sem caminho: o `trimSlash` de `src/config/env.ts` normaliza, mas o valor certo já entra limpo.
 
 Note que o ambiente de dev vive em outro domínio registrável (`cometagaming.com`, não `bet.br`). Para requisição de leitura com CORS isso é indiferente, mas se a camada de dados um dia precisar mandar cookie, o navegador vai tratar como contexto _cross-site_ e exigir `SameSite=None; Secure`. Vale saber agora para não descobrir depois.
+
+`VITE_HOST_ORIGINS` leva **uma origem só**: a da página que embute o widget. Não entra a origem do próprio widget, e não entra nenhuma origem da Altenar — o porquê está na seção seguinte.
+
+> **Confirmar o `www` antes de preencher.** Comparação de origem é string exata: `https://start.bet.br` e `https://www.start.bet.br` são origens diferentes, e a errada quebra o bridge sem emitir erro. Abrir a página do site, deixar os redirects acontecerem e usar exatamente o que sobrar na barra de endereço. O mesmo vale para o ambiente de dev.
+
+## Topologia do embed
+
+O widget fica num `<iframe>` embutido **direto na página do site**. Não há iframe intermediário da Altenar: o sportsbook dela é um SDK JavaScript (`altenarWSDK.js`) carregado na própria página, então boletim e catálogo vivem no mesmo documento que nos embute.
+
+Isso foi verificado no widget equivalente da EstrelaBet, que usa esta mesma arquitetura. Rodando `location.ancestorOrigins` dentro do iframe do widget:
+
+```
+DOMStringList { 0: "https://www.estrelabet.bet.br", length: 1 }
+```
+
+Uma origem só, e é a do site.
+
+Duas consequências:
+
+**O back office não entra em lugar nenhum.** Ele é o painel administrativo onde o HTML do embed é colado; em tempo de execução não aparece. Nem no `VITE_HOST_ORIGINS`, nem no `frame-ancestors`.
+
+**O host já tem o SDK da Altenar em mãos.** Quando o bridge existir, o handler de `postMessage` do lado da página traduz a intenção do widget em chamada do WSDK — o widget descreve, o host executa com o que já tem carregado.
+
+Para repetir a verificação no nosso ambiente: abrir a página do site onde o widget está embutido, trocar o contexto do console do DevTools para o frame do widget e rodar `location.ancestorOrigins`. O que voltar é o valor da variável.
 
 ## O workflow
 
@@ -246,7 +270,7 @@ Três detalhes que não são óbvios:
 ## Verificação pós-deploy
 
 ```bash
-curl -sI https://supermultipla.startbet.bet.br/boosts.html
+curl -sI https://supermultipla.start.bet.br/boosts.html
 ```
 
 Conferir: `200`, `cache-control: no-cache`, presença de `content-security-policy` com `frame-ancestors` e ausência de `x-frame-options`. Num arquivo de `assets/`, conferir `cache-control: public, max-age=31536000, immutable`.
@@ -255,8 +279,8 @@ Depois, abrir a página num `<iframe>` a partir de uma origem autorizada e confi
 
 ## Pendências antes do primeiro deploy
 
-- **Domínio dos widgets.** Duas confirmações antes de emitir certificado: a grafia (`supermultipla` ou `supermutipla`) e a zona. O site publicado hoje é `start.bet.br`, e o ambiente de dev é `start-dev.cometagaming.com` — nenhum dos dois é `startbet.bet.br`. Confirmar se essa zona existe e é nossa, ou se o widget deveria morar em `supermultipla.start.bet.br`.
-- **Raiz do domínio.** O `index.html` é catálogo de desenvolvimento e está excluído do build de produção: o `dist/` tem apenas `boosts.html` e `assets/`. Hoje `https://supermultipla.startbet.bet.br/` não resolve para nada. Decidir entre uma página mínima, um redirect ou um 404 tratado — com OAC, objeto ausente retorna `403`, então é preciso um _custom error response_ para virar um 404 apresentável.
+- **`www` na origem do site.** Define o `VITE_HOST_ORIGINS` e o `frame-ancestors`, e é a única coisa que ainda separa essas duas configurações de estarem fechadas. Confirmar abrindo a página do site e lendo a barra de endereço depois dos redirects, nos dois ambientes.
+- **Raiz do domínio.** O `index.html` é catálogo de desenvolvimento e está excluído do build de produção: o `dist/` tem apenas `boosts.html` e `assets/`. Hoje `https://supermultipla.start.bet.br/` não resolve para nada. Decidir entre uma página mínima, um redirect ou um 404 tratado — com OAC, objeto ausente retorna `403`, então é preciso um _custom error response_ para virar um 404 apresentável.
 - **CORS no Nitro.** O widget passa a chamar a API a partir de uma origem nova, e são duas configurações distintas: o Nitro de `start.bet.br` precisa liberar o domínio do widget de produção, e o de `start-dev.cometagaming.com` o de dev. Só vira bloqueante quando a camada de dados existir.
-- **Origem do back office da Altenar.** Necessária para fechar o `frame-ancestors` e o `VITE_HOST_ORIGINS`.
+- **CSP da página hospedeira.** O host da EstrelaBet serve um CSP com `connect-src 'none'` — hoje em _report-only_, então só registra. Se uma política equivalente for aplicada de verdade na nossa página, ela bloqueia as requisições do widget e derruba a camada de dados. Conferir com quem administra o CSP do site antes de construí-la.
 - **Peso das fontes.** `base-neue-condensed.css` declara 18 pesos em TTF e o build emite todos (~2,2 MB). O navegador só baixa o peso usado, mas vale reduzir a família e migrar para woff2 antes do primeiro widget real em produção.

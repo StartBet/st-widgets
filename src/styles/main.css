@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  margin: 0;
+  background: transparent;
+}
+
+.st-widget {
+  background: var(--st-color-surface-0);
+  padding-inline: var(--st-widget-padding-inline, 0);
+}
+
+@media (min-width: 480px) {
+  .st-widget {
+    padding-inline: 0;
+  }
+}

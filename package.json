@@ -1,0 +1,55 @@
+{
+  "name": "st-widgets",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "prepare": "husky",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "lint-staged": "lint-staged",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "validate:branch-name": "node scripts/validate-branch-name.mjs"
+  },
+  "dependencies": {
+    "@startbet/st-core-ui": "^0.35.0",
+    "vue": "^3.5.41"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.3",
+    "@typescript-eslint/eslint-plugin": "^8.70.0",
+    "@typescript-eslint/parser": "^8.70.0",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "@vitest/coverage-v8": "^5.0.1",
+    "@vue/test-utils": "^2.5.1",
+    "autoprefixer": "^10.6.1",
+    "eslint": "^10.10.0",
+    "eslint-plugin-vue": "^10.11.0",
+    "globals": "^17.12.0",
+    "happy-dom": "^20.14.5",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.5.1",
+    "postcss": "^8.5.28",
+    "prettier": "^3.9.7",
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6",
+    "vitest": "^5.0.1",
+    "vue-tsc": "^3.3.11"
+  }
+}

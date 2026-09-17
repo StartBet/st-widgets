@@ -2,10 +2,11 @@ import { env } from '@/config/env';
 
 export type WidgetTheme = 'light' | 'dark' | 'system';
 
+// Globais do shell. Parametro que so um widget usa nao entra aqui: ele declara
+// o proprio esquema com readWidgetParams. Ver docs/architecture.md.
 export type WidgetParams = {
   theme: WidgetTheme;
   integration: string;
-  listId: number | null;
   mobilePaddingInline: string;
   debug: boolean;
 };
@@ -21,14 +22,6 @@ const toTheme = (value: string | null): WidgetTheme => {
   return 'dark';
 };
 
-const toNumber = (value: string | null): number | null => {
-  if (value === null || value.trim() === '') return null;
-
-  const parsed = Number(value);
-
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
 export const readParams = (
   search: string = window.location.search
 ): WidgetParams => {
@@ -37,7 +30,6 @@ export const readParams = (
   return {
     theme: toTheme(query.get('theme')),
     integration: query.get('integration')?.trim() || env.integration,
-    listId: toNumber(query.get('listId')),
     mobilePaddingInline: query.get('mobilePaddingInline')?.trim() ?? '',
     debug: query.get('debug') === '1'
   };

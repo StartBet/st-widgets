@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_ALTENAR_INTEGRATION: string;
+  readonly VITE_ALTENAR_API_URL: string;
   readonly VITE_API_BASE_URL: string;
   readonly VITE_HOST_ORIGINS: string;
   readonly VITE_DEFAULT_THEME: string;

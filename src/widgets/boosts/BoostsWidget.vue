@@ -74,7 +74,14 @@ const openEvent = (card: BoostCard) => {
   bridge.send({
     type: 'navigate',
     payload: {
-      target: { kind: 'event', id: card.eventId, live: card.isLive }
+      target: {
+        kind: 'event',
+        id: card.eventId,
+        live: card.isLive,
+        sport: card.sport,
+        country: card.country,
+        name: card.eventName
+      }
     }
   });
 };

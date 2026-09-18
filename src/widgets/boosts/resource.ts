@@ -31,6 +31,8 @@ type RawBetCard = {
 type RawEvent = Identifiable & {
   name?: string;
   status?: number;
+  sportId?: number;
+  catId?: number;
   champId?: number;
   competitorIds?: number[];
   startDate?: string;
@@ -43,6 +45,8 @@ type BetCardsResponse = {
   events?: RawEvent[];
   competitors?: RawCompetitor[];
   champs?: Array<Identifiable & { name?: string }>;
+  sports?: Array<Identifiable & { name?: string }>;
+  categories?: Array<Identifiable & { name?: string }>;
   markets?: Array<Identifiable & { name?: string }>;
   odds?: Array<Identifiable & { name?: string }>;
 };
@@ -61,6 +65,9 @@ export type BoostCard = {
   awayLogo: string | null;
   eventName: string;
   competition: string;
+  /** Esporte e pais compoem o caminho legivel da rota, montado pelo host. */
+  sport: string;
+  country: string;
   isLive: boolean;
   /** Bet Builder: multipla dentro de um evento so. Vira selo no card. */
   isBB: boolean;
@@ -124,6 +131,8 @@ export const mapBoostCards = (
   const events = indexById(data.events);
   const competitors = indexById(data.competitors);
   const champs = indexById(data.champs);
+  const sports = indexById(data.sports);
+  const categories = indexById(data.categories);
   const markets = indexById(data.markets);
   const odds = indexById(data.odds);
 
@@ -167,6 +176,8 @@ export const mapBoostCards = (
       awayLogo: buildLogo(awayCompetitor, logos),
       eventName: event.name?.trim() ?? '',
       competition: champs.get(Number(event.champId))?.name?.trim() ?? '',
+      sport: sports.get(Number(event.sportId))?.name?.trim() ?? '',
+      country: categories.get(Number(event.catId))?.name?.trim() ?? '',
       isLive: event.status !== 0,
       isBB: Boolean(card.isBB),
       startDate: event.startDate ?? null,

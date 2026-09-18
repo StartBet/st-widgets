@@ -11,11 +11,26 @@ const trimSlash = (value: string | undefined) =>
 // entao o widget chama direto. O default cobre o caso de a variavel nao estar
 // configurada no ambiente. Ver docs/architecture.md.
 const ALTENAR_API_FALLBACK = 'https://sb2frontend-altenar2.biahosted.com';
+const ALTENAR_GATEWAY_FALLBACK =
+  'https://sb2commongateway-altenar2.biahosted.com';
+
+// CDN dos escudos: {cdn}/{logoSetId}/l/{competitorId}, so quando o competidor
+// traz `hasConfigLogo`. O logoSetId e constante da integracao — nao vem na
+// resposta da API.
+const JERSEY_CDN_FALLBACK = 'https://sb2jerseys-cdn-altenar2.biahosted.net';
+const LOGO_SET_ID_FALLBACK = '127';
 
 export const env = {
   integration: import.meta.env.VITE_ALTENAR_INTEGRATION ?? 'startbet',
   altenarApiUrl:
     trimSlash(import.meta.env.VITE_ALTENAR_API_URL) || ALTENAR_API_FALLBACK,
+  altenarGatewayUrl:
+    trimSlash(import.meta.env.VITE_ALTENAR_GATEWAY_URL) ||
+    ALTENAR_GATEWAY_FALLBACK,
+  jerseyCdnUrl:
+    trimSlash(import.meta.env.VITE_ALTENAR_JERSEY_CDN_URL) ||
+    JERSEY_CDN_FALLBACK,
+  logoSetId: import.meta.env.VITE_ALTENAR_LOGO_SET_ID || LOGO_SET_ID_FALLBACK,
   // Nitro do front-startbet: excecao, para o que so existir na DataFeed.
   apiBaseUrl: trimSlash(import.meta.env.VITE_API_BASE_URL),
   hostOrigins: list(import.meta.env.VITE_HOST_ORIGINS),

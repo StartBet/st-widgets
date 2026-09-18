@@ -28,6 +28,18 @@ export type AltenarRequestOptions = {
   integration?: string;
 };
 
+/** Parametros que toda chamada da Altenar leva, em query ou em corpo. */
+const commonParams = (integration?: string) => ({
+  culture: CULTURE,
+  // Minutos a oeste de UTC, como o navegador reporta: 180 no horario de
+  // Brasilia. E o mesmo numero que a SPA da Altenar envia.
+  timezoneOffset: new Date().getTimezoneOffset(),
+  integration: integration ?? env.integration,
+  deviceType: DEVICE_TYPE,
+  numFormat: NUM_FORMAT,
+  countryCode: COUNTRY_CODE
+});
+
 export const altenarRequest = <T>(
   path: string,
   options: AltenarRequestOptions = {}
@@ -36,14 +48,24 @@ export const altenarRequest = <T>(
     baseUrl: env.altenarApiUrl,
     signal: options.signal,
     query: {
-      culture: CULTURE,
-      // Minutos a oeste de UTC, como o navegador reporta: 180 no horario de
-      // Brasilia. E o mesmo numero que a SPA da Altenar envia.
-      timezoneOffset: new Date().getTimezoneOffset(),
-      integration: options.integration ?? env.integration,
-      deviceType: DEVICE_TYPE,
-      numFormat: NUM_FORMAT,
-      countryCode: COUNTRY_CODE,
+      ...commonParams(options.integration),
       ...options.query
     }
+  });
+
+/**
+ * POST no common gateway. Hoje so o contador de apostas por bet card mora la,
+ * e ele e enfeite: sem a contagem o card continua valido, entao a falha nao
+ * pode derrubar a vitrine.
+ */
+export const altenarGatewayPost = <T>(
+  path: string,
+  body: Record<string, unknown>,
+  options: AltenarRequestOptions = {}
+): Promise<T> =>
+  request<T>(path, {
+    baseUrl: env.altenarGatewayUrl,
+    method: 'POST',
+    signal: options.signal,
+    body: { ...commonParams(options.integration), ...body }
   });

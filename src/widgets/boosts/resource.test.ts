@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchBoostCards, mapBoostCards } from './resource';
+import {
+  applyPopularity,
+  fetchBoostCards,
+  isPopular,
+  mapBoostCards
+} from './resource';
 
 // Recorte real de GetBetCards?betCardListId=915, com as tabelas de lookup que a
 // resposta traz. O card BB e o Flamengo x Independiente del Valle da POC.
@@ -36,7 +41,7 @@ const resposta = {
     }
   ],
   competitors: [
-    { id: 101, name: 'Flamengo' },
+    { id: 101, name: 'Flamengo', hasConfigLogo: true },
     { id: 102, name: 'Independiente del Valle' }
   ],
   champs: [{ id: 3709, name: 'Copa Libertadores' }],
@@ -188,6 +193,82 @@ describe('mapBoostCards', () => {
   });
 });
 
+describe('selo, promocao e escudos', () => {
+  // O selo vem da familia do boost (`boostInfo.property`), nao de texto fixo:
+  // 1 = Turbinada, 3 = Purple Odds. A familia 3 tambem muda a cor do selo.
+  it('deriva o selo da familia do boost', () => {
+    const [turbinada, purple] = mapBoostCards(resposta);
+
+    expect(turbinada).toMatchObject({
+      typeLabel: 'Turbinada',
+      promotional: false
+    });
+    expect(purple).toMatchObject({
+      typeLabel: 'Purple Odds',
+      promotional: true
+    });
+  });
+
+  it('cai no fallback quando a familia e desconhecida', () => {
+    const cards = mapBoostCards(
+      {
+        ...resposta,
+        betCards: [
+          { ...resposta.betCards[0]!, boostInfo: { price: 9, property: 99 } }
+        ]
+      },
+      {},
+      'Turbinada'
+    );
+
+    expect(cards[0]?.typeLabel).toBe('Turbinada');
+    expect(cards[0]?.promotional).toBe(false);
+  });
+
+  it('preserva isBB, que decide o selo BB no card', () => {
+    const [bb, simples] = mapBoostCards(resposta);
+
+    expect(bb?.isBB).toBe(true);
+    expect(simples?.isBB).toBe(false);
+  });
+
+  // O escudo so existe quando o competidor traz hasConfigLogo; o logoSetId e
+  // constante da integracao e nao vem na resposta.
+  it('monta o escudo so para quem tem hasConfigLogo', () => {
+    const [bb] = mapBoostCards(resposta, {
+      jerseyCdn: 'https://cdn.exemplo',
+      logoSetId: '127'
+    });
+
+    expect(bb?.homeLogo).toBe('https://cdn.exemplo/127/l/101');
+    expect(bb?.awayLogo).toBeNull();
+  });
+
+  it('nao monta escudo sem configuracao de cdn', () => {
+    const [bb] = mapBoostCards(resposta);
+
+    expect(bb?.homeLogo).toBeNull();
+  });
+});
+
+describe('popularidade', () => {
+  it('aplica a contagem e decide o icone de fogo', () => {
+    const cards = applyPopularity(mapBoostCards(resposta), { '17273263': 5 });
+
+    expect(cards[0]?.popularity).toBe(5);
+    expect(isPopular(cards[0]!)).toBe(true);
+    // Sem contagem, o card fica em zero e nao ganha o destaque.
+    expect(cards[1]?.popularity).toBe(0);
+    expect(isPopular(cards[1]!)).toBe(false);
+  });
+
+  it('mantem os cards quando a contagem nao veio', () => {
+    const cards = mapBoostCards(resposta);
+
+    expect(applyPopularity(cards, null)).toBe(cards);
+  });
+});
+
 // --- fetch ---------------------------------------------------------------
 
 /** Captura as chamadas de rede e devolve sempre a mesma resposta. */
@@ -284,5 +365,65 @@ describe('fetchBoostCards', () => {
     await fetchBoostCards({ betCardListId: 915, integration: 'vupi' });
 
     expect(parse(urls[0]!).searchParams.get('integration')).toBe('vupi');
+  });
+});
+
+describe('fetchBoostCards + popularidade', () => {
+  it('consulta a contagem no common gateway e enriquece os cards', async () => {
+    const urls: string[] = [];
+    const bodies: string[] = [];
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((...args: [string, RequestInit]) => {
+        urls.push(args[0]);
+        if (args[1]?.body) bodies.push(String(args[1].body));
+
+        const body = args[0].includes('BoostedBets')
+          ? { itemCounts: { '17273263': 9 } }
+          : resposta;
+
+        return Promise.resolve(
+          new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          })
+        );
+      })
+    );
+
+    const cards = await fetchBoostCards({ betCardListId: 915 });
+
+    expect(urls[1]).toBe(
+      'https://sb2commongateway-altenar2.biahosted.com/api/BoostedBets/GetCountsByIntegration'
+    );
+    expect(JSON.parse(bodies[0]!)).toMatchObject({
+      itemIds: [17273263, 17355593],
+      integration: 'startbet'
+    });
+    expect(cards[0]?.popularity).toBe(9);
+  });
+
+  // O selo de fogo e enfeite: sem a contagem o card continua valido, entao a
+  // falha da segunda chamada nao pode derrubar a vitrine.
+  it('segue com os cards quando a contagem falha', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((...args: [string, RequestInit]) =>
+        args[0].includes('BoostedBets')
+          ? Promise.resolve(new Response('', { status: 500 }))
+          : Promise.resolve(
+              new Response(JSON.stringify(resposta), {
+                status: 200,
+                headers: { 'content-type': 'application/json' }
+              })
+            )
+      )
+    );
+
+    const cards = await fetchBoostCards({ betCardListId: 915 });
+
+    expect(cards).toHaveLength(2);
+    expect(cards[0]?.popularity).toBe(0);
   });
 });

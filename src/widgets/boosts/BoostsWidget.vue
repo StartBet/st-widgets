@@ -1,15 +1,32 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { StTypography } from '@startbet/st-core-ui';
+import {
+  StButton,
+  StCarousel,
+  StIcon,
+  StSuperOddsCard,
+  StTypography
+} from '@startbet/st-core-ui';
 import { useResource } from '@/api/useResource';
 import { useHostBridge } from '@/bridge/context';
 import { useWidgetParams } from '@/app/context';
+import { env } from '@/config/env';
 import { readBoostsParams } from './params';
-import { fetchBoostCards, type BoostCard } from './resource';
+import { fetchBoostCards, isPopular, type BoostCard } from './resource';
+
+// Espelha o StBetCardCarousel do front-startbet. A diferenca visual combinada
+// e a ausencia do "Ver mais": aqui sobram icone, titulo e as setas. Navegar
+// para uma listagem seria intencao nova no contrato, e o widget nao precisa.
+const TITLE = 'Purple Odds';
+const CARD_TYPE_FALLBACK = 'Turbinada';
 
 const global = useWidgetParams();
 const params = readBoostsParams();
 const bridge = useHostBridge();
+
+// O carrossel e infinito, entao as setas nunca desabilitam — so precisamos
+// dos metodos de navegacao.
+const carousel = ref<{ next: () => void; prev: () => void } | null>(null);
 
 const cards = useResource((signal) =>
   fetchBoostCards({
@@ -17,12 +34,14 @@ const cards = useResource((signal) =>
     sportId: params.sportId,
     integration: global.integration,
     limit: params.limit,
+    logos: { jerseyCdn: env.jerseyCdnUrl, logoSetId: env.logoSetId },
+    fallbackType: CARD_TYPE_FALLBACK,
     signal
   })
 );
 
-// Estado do bilhete: so o host consegue ler (o localStorage da Altenar fica na
-// origem dele). Ver docs/bridge-poc.md.
+// Estado do bilhete: so o host consegue ler, porque o localStorage da Altenar
+// fica na origem dele. Ver docs/bridge-poc.md.
 const activeIds = ref<number[]>([]);
 
 bridge.on('betslip:state', (message) => {
@@ -32,79 +51,146 @@ bridge.on('betslip:state', (message) => {
 const isActive = (card: BoostCard) =>
   card.matchIds.some((id) => activeIds.value.includes(id));
 
-const add = (card: BoostCard) => {
+const list = computed(() => cards.data.value ?? []);
+const isLoading = computed(
+  () => cards.pending.value && list.value.length === 0
+);
+const skeletonCount = 5;
+
+const eventLabel = (card: BoostCard) =>
+  card.home && card.away ? `${card.home} x ${card.away}` : card.eventName;
+
+const addToBetslip = (card: BoostCard) => {
   bridge.send({
     type: 'betslip:add',
     payload: { selection: card.selection }
   });
 };
 
-const formatOdd = (value: number | null) =>
-  value == null ? '' : value.toFixed(2);
+// Id de dominio, nunca URL: montar a rota e assunto do host.
+const openEvent = (card: BoostCard) => {
+  if (card.eventId == null) return;
 
-const hasCards = computed(() => (cards.data.value?.length ?? 0) > 0);
+  bridge.send({
+    type: 'navigate',
+    payload: {
+      target: { kind: 'event', id: card.eventId, live: card.isLive }
+    }
+  });
+};
 </script>
 
 <template>
-  <section class="flex flex-col gap-3 p-4">
-    <div v-if="cards.pending.value" class="flex gap-3 overflow-hidden">
-      <div
-        v-for="i in 4"
-        :key="i"
-        class="h-40 w-64 shrink-0 animate-pulse rounded"
-        :style="{ background: 'var(--st-color-light-1)' }"
-      />
-    </div>
+  <section
+    v-if="isLoading || list.length > 0"
+    class="flex min-w-0 flex-col gap-st-1 p-2 md:gap-st-2"
+  >
+    <header
+      v-if="isLoading"
+      class="flex items-center gap-st-1"
+      aria-hidden="true"
+    >
+      <span class="shimmer-effect size-8 shrink-0 rounded-full sm:size-12" />
+      <span class="shimmer-effect h-6 w-40 rounded-full sm:h-8 sm:w-64" />
+    </header>
 
-    <StTypography v-else-if="cards.error.value" variant="body-small" as="p">
-      Nao foi possivel carregar as odds turbinadas.
-    </StTypography>
-
-    <ul v-else-if="hasCards" class="flex list-none gap-3 overflow-x-auto p-0">
-      <li
-        v-for="card in cards.data.value"
-        :key="card.id"
-        class="flex w-64 shrink-0 flex-col gap-2 rounded p-3"
-        :style="{ background: 'var(--st-color-light-1)' }"
-      >
-        <StTypography variant="body-small" as="span">{{
-          card.competition
-        }}</StTypography>
-
-        <StTypography variant="body-small" as="span" weight="bold"
-          >{{ card.home }} x {{ card.away }}</StTypography
+    <header v-else class="flex items-center justify-between gap-st-2">
+      <div class="flex min-w-0 items-center gap-st-1">
+        <span
+          class="flex size-8 shrink-0 items-center justify-center rounded-full bg-st-surface-0 text-st-content-secondary sm:size-12"
+          aria-hidden="true"
         >
+          <StIcon name="bolt" :size="3" />
+        </span>
 
-        <ul class="flex list-none flex-col gap-1 p-0">
-          <li v-for="(item, index) in card.selections" :key="index">
-            <StTypography variant="body-small" as="span"
-              >{{ item.selection }} — {{ item.market }}</StTypography
-            >
-          </li>
-        </ul>
-
-        <button
-          type="button"
-          class="mt-auto flex items-center justify-center gap-2 rounded py-2"
-          :style="{
-            background: isActive(card)
-              ? 'var(--st-color-positive)'
-              : 'var(--st-color-primary)'
-          }"
-          @click="add(card)"
+        <StTypography
+          as="h2"
+          variant="highlight-medium"
+          uppercase
+          truncate
+          class-name="min-w-0 text-st-content-default text-st-sm"
         >
-          <StTypography
-            v-if="card.price != null && card.boostedPrice != null"
-            variant="body-small"
-            as="span"
-            class="line-through"
-            >{{ formatOdd(card.price) }}</StTypography
-          >
-          <StTypography variant="body-small" as="span" weight="bold">{{
-            formatOdd(card.boostedPrice ?? card.price)
-          }}</StTypography>
-        </button>
-      </li>
-    </ul>
+          {{ TITLE }}
+        </StTypography>
+      </div>
+
+      <div class="hidden shrink-0 items-center gap-st-1 md:flex">
+        <StButton
+          variant="text"
+          size="small"
+          icon-left="chevron-left"
+          :aria-label="`Voltar carrossel de ${TITLE}`"
+          @click="carousel?.prev()"
+        />
+        <StButton
+          variant="text"
+          size="small"
+          icon-left="chevron-right"
+          :aria-label="`Avançar carrossel de ${TITLE}`"
+          @click="carousel?.next()"
+        />
+      </div>
+    </header>
+
+    <StCarousel
+      ref="carousel"
+      arrows="none"
+      bullets="none"
+      grab
+      slide-class-name="flex"
+      infinite-loop
+      highlight
+      :aria-label="`Carrossel de ${TITLE}`"
+      :slide-per-page="1"
+      :sm-slide-per-page="2"
+      :md-slide-per-page="3"
+      :lg-slide-per-page="4"
+      slide-align="center"
+      md-slide-align="left"
+      lg-slide-align="left"
+      :gap="0"
+      :md-gap="0"
+      :peek="6"
+      :md-peek="4"
+    >
+      <template v-if="isLoading">
+        <div
+          v-for="index in skeletonCount"
+          :key="`skeleton-${index}`"
+          class="shimmer-effect relative flex aspect-video min-h-[150px] w-full min-w-0 flex-col rounded-xl lg:min-h-[200px]"
+          aria-hidden="true"
+        />
+      </template>
+
+      <template v-else>
+        <StSuperOddsCard
+          v-for="card in list"
+          :key="card.id"
+          :competition="card.competition"
+          :event-name="card.eventName"
+          :home="card.home"
+          :away="card.away"
+          :home-logo="card.homeLogo"
+          :away-logo="card.awayLogo"
+          :start-date="card.startDate ?? undefined"
+          :selections="card.selections"
+          :price="card.price ?? undefined"
+          :boosted-price="card.boostedPrice ?? undefined"
+          :promotional="card.promotional"
+          :show-boost-icon="isPopular(card)"
+          :active="isActive(card)"
+          :aria-label="eventLabel(card)"
+          :action-aria-label="`Adicionar ${eventLabel(card)} ao bilhete`"
+          @select="addToBetslip(card)"
+          @click="openEvent(card)"
+        >
+          <template #type>
+            <StIcon name="bolt" :size="1" aria-hidden="true" />
+            {{ card.typeLabel }}
+            <span v-if="card.isBB">BB</span>
+          </template>
+        </StSuperOddsCard>
+      </template>
+    </StCarousel>
   </section>
 </template>

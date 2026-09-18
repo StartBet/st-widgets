@@ -192,6 +192,7 @@ export const mapBoostCards = (
       // turbinada nao tem API. Os times identificam o card, `isBB` distingue
       // normal de Bet Builder, e o preco turbinado desempata. Ver bridge-poc.md.
       selection: toSelectionRef({
+        cardId: card.id,
         oddIds,
         home,
         away,

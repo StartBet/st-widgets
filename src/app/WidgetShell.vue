@@ -5,11 +5,12 @@ import { useWidgetParams } from '@/app/context';
 
 const params = useWidgetParams();
 
-const style = computed(() =>
-  params.mobilePaddingInline
+const style = computed(() => ({
+  '--st-widget-surface': `var(--st-color-surface-${params.surface})`,
+  ...(params.mobilePaddingInline
     ? { '--st-widget-padding-inline': params.mobilePaddingInline }
-    : undefined
-);
+    : {})
+}));
 </script>
 
 <template>

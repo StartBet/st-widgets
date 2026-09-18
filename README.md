@@ -63,17 +63,21 @@ Não há configuração a alterar: o Vite descobre as entradas varrendo os `.htm
 
 ## Parâmetros de URL
 
-Lidos em `src/config/params.ts` e disponíveis em qualquer componente via `useWidgetParams()`.
+São dois níveis. Os **globais do shell** valem para todos os widgets e ficam em `src/config/params.ts`, disponíveis via `useWidgetParams()`:
 
-| Parâmetro             | Valores                   | Default                    |
-| --------------------- | ------------------------- | -------------------------- |
-| `theme`               | `light`, `dark`, `system` | `VITE_DEFAULT_THEME`       |
-| `integration`         | skin da Altenar           | `VITE_ALTENAR_INTEGRATION` |
-| `listId`              | número                    | nenhum                     |
-| `mobilePaddingInline` | qualquer medida CSS       | vazio                      |
-| `debug`               | `1`                       | desligado                  |
+| Parâmetro             | Valores                         | Default                    |
+| --------------------- | ------------------------------- | -------------------------- |
+| `theme`               | `light`, `dark`, `system`       | `VITE_DEFAULT_THEME`       |
+| `surface`             | `0`–`4`, `primary`, `secondary` | `2`                        |
+| `integration`         | skin da Altenar                 | `VITE_ALTENAR_INTEGRATION` |
+| `mobilePaddingInline` | qualquer medida CSS             | vazio                      |
+| `debug`               | `1`                             | desligado                  |
 
-`mobilePaddingInline` compensa o padding do container do host e só vale abaixo de 480px.
+Os **do widget** são declarados por ele com `readWidgetParams`, em `src/widgets/<nome>/params.ts`. O `boosts` aceita `betCardListId`, `sportId` e `limit`; o `top-league`, `limit`.
+
+`surface` escolhe o token que pinta o fundo do frame — quem embute decide qual combina com a página em volta. `mobilePaddingInline` compensa o padding do container do host e só vale abaixo de 480px.
+
+Todo parâmetro cai num default quando ausente ou malformado: quem preenche é o back office da Altenar, à mão, e um widget que estoura dentro de um iframe não é visto por ninguém.
 
 ## Variáveis de ambiente
 

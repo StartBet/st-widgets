@@ -26,6 +26,19 @@ describe('readParams', () => {
     expect(readParams('?theme=neon').theme).toBe('dark');
   });
 
+  it('usa surface-2 como default e aceita os tokens conhecidos', () => {
+    expect(readParams('').surface).toBe('2');
+    expect(readParams('?surface=0').surface).toBe('0');
+    expect(readParams('?surface=primary').surface).toBe('primary');
+  });
+
+  // Quem preenche e o back office, sem validacao do outro lado: token
+  // desconhecido cai no default em vez de deixar o widget sem fundo.
+  it('ignora surface desconhecida', () => {
+    expect(readParams('?surface=9').surface).toBe('2');
+    expect(readParams('?surface=roxo').surface).toBe('2');
+  });
+
   it('ignora integration vazia', () => {
     expect(readParams('?integration=%20').integration).toBe('startbet');
   });

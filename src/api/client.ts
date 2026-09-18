@@ -87,6 +87,10 @@ export type RequestOptions = {
   signal?: AbortSignal;
   /** Default: o Nitro. A API de widgets da Altenar passa a sua propria base. */
   baseUrl?: string;
+  /** Default `GET`. */
+  method?: 'GET' | 'POST';
+  /** Corpo JSON. So faz sentido com `POST`. */
+  body?: unknown;
 };
 
 export const request = async <T>(
@@ -96,10 +100,18 @@ export const request = async <T>(
   const url = buildUrl(path, options.query, options.baseUrl);
   let response: Response;
 
+  const method = options.method ?? 'GET';
+
   try {
     response = await fetch(url, {
+      method,
       signal: options.signal,
-      headers: { accept: 'application/json' }
+      headers:
+        options.body === undefined
+          ? { accept: 'application/json' }
+          : { accept: 'application/json', 'content-type': 'application/json' },
+      body:
+        options.body === undefined ? undefined : JSON.stringify(options.body)
     });
   } catch (error) {
     // Cancelamento nao e falha: sobe como esta para quem chamou distinguir.

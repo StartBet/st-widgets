@@ -100,10 +100,12 @@ export const createHostBridge = (
     const target = hostOrigin ?? resolveParentOrigin(allowed);
 
     if (target) {
+      log('enviado', envelope, '->', target);
       window.parent.postMessage(envelope, target);
       return;
     }
 
+    log('enviado', envelope, '-> (allowlist)', allowed);
     for (const origin of allowed) window.parent.postMessage(envelope, origin);
   };
 

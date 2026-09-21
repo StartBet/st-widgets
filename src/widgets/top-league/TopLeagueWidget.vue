@@ -26,7 +26,14 @@ const leagues = useResource((signal) =>
 const open = (league: League) => {
   bridge.send({
     type: 'navigate',
-    payload: { target: { kind: 'championship', id: league.id } }
+    payload: {
+      target: {
+        kind: 'championship',
+        id: league.id,
+        sport: league.sport,
+        country: league.country
+      }
+    }
   });
 };
 

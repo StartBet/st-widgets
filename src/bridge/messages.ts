@@ -32,13 +32,29 @@ export const toSelectionRef = (value: Record<string, unknown>): SelectionRef =>
   value as unknown as SelectionRef;
 
 /**
+ * Partes legiveis do caminho. O widget manda os NOMES; quem decide a ordem, o
+ * formato do slug e o desenho da rota continua sendo o host.
+ *
+ * Elas existem porque o host so recebe um id e nao teria como descobrir o resto
+ * sem uma consulta a cada clique. Sem isto a rota sai curta — `/sports/c-11318`
+ * em vez de `/sports/futebol/brasil/c-11318` — o que funciona mas perde o
+ * caminho legivel que o site usa em todo lugar.
+ */
+export type NavigationPath = {
+  sport?: string;
+  country?: string;
+  /** Nome do evento. Campeonato nao entra no caminho. */
+  name?: string;
+};
+
+/**
  * Alvo de navegacao por id de dominio, nunca por URL: a estrutura de rotas e
  * assunto do host e muda sem nos avisar.
  */
 export type NavigationTarget =
-  | { kind: 'championship'; id: number }
-  | { kind: 'sport'; id: number }
-  | { kind: 'event'; id: number; live?: boolean };
+  | ({ kind: 'championship'; id: number } & NavigationPath)
+  | ({ kind: 'sport'; id: number } & NavigationPath)
+  | ({ kind: 'event'; id: number; live?: boolean } & NavigationPath);
 
 /** Ids presentes no bilhete, do ponto de vista do host. */
 export type BetslipState = {

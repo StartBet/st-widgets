@@ -68,13 +68,21 @@ const addToBetslip = (card: BoostCard) => {
 };
 
 // Id de dominio, nunca URL: montar a rota e assunto do host.
-const openEvent = (card: BoostCard) => {
+const openEvent = (card: BoostCard, event: MouseEvent) => {
+  if ((event.target as HTMLElement | null)?.closest('button')) return;
   if (card.eventId == null) return;
 
   bridge.send({
     type: 'navigate',
     payload: {
-      target: { kind: 'event', id: card.eventId, live: card.isLive }
+      target: {
+        kind: 'event',
+        id: card.eventId,
+        live: card.isLive,
+        sport: card.sport,
+        country: card.country,
+        name: card.eventName
+      }
     }
   });
 };
@@ -182,7 +190,7 @@ const openEvent = (card: BoostCard) => {
           :aria-label="eventLabel(card)"
           :action-aria-label="`Adicionar ${eventLabel(card)} ao bilhete`"
           @select="addToBetslip(card)"
-          @click="openEvent(card)"
+          @click="openEvent(card, $event)"
         >
           <template #type>
             <StIcon name="bolt" :size="1" aria-hidden="true" />

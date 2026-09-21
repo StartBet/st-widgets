@@ -184,6 +184,7 @@ describe('mapBoostCards', () => {
     // O tipo e opaco; em runtime ainda da para inspecionar, e e isto que o
     // host recebe para achar o bet card nativo.
     expect(bb?.selection).toEqual({
+      cardId: 17273263,
       oddIds: [4482652839, 4482652762],
       home: 'Flamengo',
       away: 'Independiente del Valle',

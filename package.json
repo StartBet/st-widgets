@@ -25,7 +25,7 @@
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^6.7.2",
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
-    "@startbet/st-core-ui": "^0.35.0",
+    "@startbet/st-core-ui": "^0.36.0",
     "vue": "^3.5.41"
   },
   "devDependencies": {

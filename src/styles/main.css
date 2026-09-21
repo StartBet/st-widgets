@@ -8,8 +8,13 @@ body {
   background: transparent;
 }
 
+/* `vh`, nao `100%`: entre o body e este container existem o `#widget` e o
+   wrapper do StThemeProvider, ambos sem altura, e a cadeia de porcentagem
+   quebra ali. Sem isso o widget para na altura do conteudo e sobra a tela do
+   navegador embaixo — a faixa preta no tema escuro. */
 .st-widget {
-  background: var(--st-color-surface-0);
+  min-height: 100vh;
+  background: var(--st-widget-surface, var(--st-color-surface-2));
   padding-inline: var(--st-widget-padding-inline, 0);
 }
 
